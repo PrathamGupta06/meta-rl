@@ -1,0 +1,6 @@
+spec_version: 1
+name: kube_architect_gym
+type: space
+runtime: fastapi
+app: server.app:app
+port: 8000
