@@ -23,6 +23,7 @@ Return JSON only with:
 }
 Base your response on topology correctness, security hardening, and cost awareness.
 Do not reward patterns already flagged as invalid by the deterministic grader.
+Keep scores conservative. You are only a bounded shaping judge, not the source of truth.
 """
 
 
@@ -74,7 +75,7 @@ class LLMJudge:
             payload = json.loads(text)
             arch = float(payload.get("architecture_quality_score", 0.0))
             reasoning = float(payload.get("reasoning_quality_score", 0.0))
-            shaping = max(-0.15, min(0.15, (arch + reasoning) / 20.0))
+            shaping = max(-0.04, min(0.04, (arch + reasoning) / 80.0))
             return JudgeResult(
                 shaping_bonus=shaping,
                 feedback=str(payload.get("feedback", "")),

@@ -8,6 +8,12 @@ from server.k8s_architecture_environment import K8sArchitectureEnvironment
 from server.task_registry import get_task
 from models import KubeArchitectGymAction
 
+PARTIAL_MANIFEST = """\
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: shop
+"""
 
 VALID_MANIFEST = """\
 apiVersion: v1
@@ -68,17 +74,28 @@ spec:
 """
 
 
-def test_invalid_yaml_scores_zero():
+def test_invalid_yaml_scores_strictly_between_zero_and_one():
     result = grade_submission(get_task("easy_web_stack"), "not: [valid")
-    assert result.total_score == 0.0
+    assert 0.0 < result.total_score < 1.0
     assert not result.valid
+
+
+def test_incomplete_manifest_does_not_score_high_on_security_or_cost():
+    result = grade_submission(get_task("easy_web_stack"), PARTIAL_MANIFEST)
+    assert 0.0 < result.score_breakdown["security"] <= 0.25
+    assert 0.0 < result.score_breakdown["cost"] <= 0.35
+    assert 0.0 < result.total_score < 0.5
 
 
 def test_env_reset_and_step():
     env = K8sArchitectureEnvironment()
     observation = env.reset()
     assert observation.task_id == "easy_web_stack"
+    assert 0.0 < observation.score_breakdown["total"] < 1.0
+    assert 0.0 < observation.reward < 1.0
 
     step_result = env.step(KubeArchitectGymAction(manifest_yaml=VALID_MANIFEST, finalize=True))
     assert "total" in step_result.score_breakdown
     assert step_result.steps_taken == 1
+    assert 0.0 < step_result.score_breakdown["total"] < 1.0
+    assert 0.0 < step_result.reward < 1.0

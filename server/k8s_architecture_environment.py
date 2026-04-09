@@ -35,6 +35,7 @@ class K8sArchitectureEnvironment(Environment):
     """Iterative environment for architecture manifest generation."""
 
     SUPPORTS_CONCURRENT_SESSIONS: bool = False
+    _INITIAL_SCORE = 0.01
 
     def __init__(self):
         self.task_sequence = list(TASKS)
@@ -70,20 +71,20 @@ class K8sArchitectureEnvironment(Environment):
             parsed_resource_summary=[],
             violations=[],
             score_breakdown={
-                "validity": 0.0,
-                "topology": 0.0,
-                "security": 0.0,
-                "cost": 0.0,
+                "validity": self._INITIAL_SCORE,
+                "topology": self._INITIAL_SCORE,
+                "security": self._INITIAL_SCORE,
+                "cost": self._INITIAL_SCORE,
             },
             llm_feedback="",
-            current_score=0.0,
+            current_score=self._INITIAL_SCORE,
             is_resolved=False,
         )
         return self._build_observation(
             feedback="Submit a multi-document Kubernetes manifest that satisfies the task constraints.",
             llm_feedback="",
             is_valid_yaml=False,
-            reward=0.0,
+            reward=self._INITIAL_SCORE,
             done=False,
         )
 
@@ -160,10 +161,10 @@ class K8sArchitectureEnvironment(Environment):
         grade = grade or GradeResult(
             valid=False,
             score_breakdown=self._state.score_breakdown or {
-                "validity": 0.0,
-                "topology": 0.0,
-                "security": 0.0,
-                "cost": 0.0,
+                "validity": self._INITIAL_SCORE,
+                "topology": self._INITIAL_SCORE,
+                "security": self._INITIAL_SCORE,
+                "cost": self._INITIAL_SCORE,
             },
             total_score=self._state.current_score,
             issues=[],

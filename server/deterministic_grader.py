@@ -15,6 +15,8 @@ except ImportError:
 HIGH_PENALTY = 0.18
 MEDIUM_PENALTY = 0.10
 LOW_PENALTY = 0.05
+STRICT_MIN = 0.01
+STRICT_MAX = 0.99
 
 
 def grade_submission(task: TaskSpec, manifest_yaml: str) -> GradeResult:
@@ -27,12 +29,12 @@ def grade_submission(task: TaskSpec, manifest_yaml: str) -> GradeResult:
         return GradeResult(
             valid=False,
             score_breakdown={
-                "validity": 0.0,
-                "topology": 0.0,
-                "security": 0.0,
-                "cost": 0.0,
+                "validity": STRICT_MIN,
+                "topology": STRICT_MIN,
+                "security": STRICT_MIN,
+                "cost": STRICT_MIN,
             },
-            total_score=0.0,
+            total_score=STRICT_MIN,
             issues=issues,
             resource_summary=[],
             feedback=str(exc),
@@ -43,11 +45,16 @@ def grade_submission(task: TaskSpec, manifest_yaml: str) -> GradeResult:
     topology_score = _grade_topology(task, parsed, issues)
     security_score = _grade_security(task, parsed, issues)
     cost_score = _grade_cost(task, parsed, issues)
+    security_score, cost_score = _apply_incomplete_topology_caps(
+        topology_score=topology_score,
+        security_score=security_score,
+        cost_score=cost_score,
+    )
     score_breakdown = {
-        "validity": round(validity_score, 4),
-        "topology": round(topology_score, 4),
-        "security": round(security_score, 4),
-        "cost": round(cost_score, 4),
+        "validity": _strict_unit_interval(validity_score),
+        "topology": _strict_unit_interval(topology_score),
+        "security": _strict_unit_interval(security_score),
+        "cost": _strict_unit_interval(cost_score),
     }
     total = (
         0.25 * score_breakdown["validity"]
@@ -55,7 +62,7 @@ def grade_submission(task: TaskSpec, manifest_yaml: str) -> GradeResult:
         + 0.25 * score_breakdown["security"]
         + 0.15 * score_breakdown["cost"]
     )
-    total = round(max(0.0, min(1.0, total)), 4)
+    total = _strict_unit_interval(total)
     return GradeResult(
         valid=score_breakdown["validity"] > 0.0,
         score_breakdown=score_breakdown,
@@ -64,6 +71,26 @@ def grade_submission(task: TaskSpec, manifest_yaml: str) -> GradeResult:
         resource_summary=build_resource_summary(parsed),
         feedback=_render_feedback(score_breakdown, issues),
     )
+
+
+def _strict_unit_interval(value: float) -> float:
+    """Clamp scores into the open interval (0, 1) for validator compatibility."""
+
+    return round(max(STRICT_MIN, min(STRICT_MAX, value)), 4)
+
+
+def _apply_incomplete_topology_caps(
+    topology_score: float,
+    security_score: float,
+    cost_score: float,
+) -> tuple[float, float]:
+    """Prevent incomplete manifests from scoring highly on security/cost by omission."""
+
+    if topology_score < 0.15:
+        return min(security_score, 0.25), min(cost_score, 0.35)
+    if topology_score < 0.35:
+        return min(security_score, 0.45), min(cost_score, 0.55)
+    return security_score, cost_score
 
 
 def _grade_validity(task: TaskSpec, parsed, issues: list[GradeIssue]) -> float:
